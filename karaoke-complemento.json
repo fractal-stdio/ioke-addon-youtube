@@ -1,0 +1,166 @@
+{
+  "formato": 1,
+  "api": 1,
+  "id": "youtube",
+  "nome": {
+    "pt-BR": "YouTube",
+    "en": "YouTube"
+  },
+  "descricao": {
+    "pt-BR": "Busca, trecho e download do áudio (e do vídeo do clipe) do YouTube, com a conta Premium opcional.",
+    "en": "Search, preview and download audio (and the music video) from YouTube, with an optional Premium account."
+  },
+  "autor": "ioke-addon-youtube",
+  "versao": "1.1.0",
+  "app_minimo": "1.0.0-rc.2",
+  "python": "3.12",
+  "entrada": "complemento.py",
+  "dependencias": "requirements.txt",
+  "oferece": [
+    "fonte_musicas"
+  ],
+  "icone": "smart_display",
+  "celular": true,
+  "opcoes": [
+    {
+      "id": "resultados",
+      "tipo": "escolha",
+      "rotulo": {
+        "pt-BR": "Resultados por busca",
+        "en": "Results per search"
+      },
+      "valores": [
+        {
+          "id": "5",
+          "rotulo": "5"
+        },
+        {
+          "id": "10",
+          "rotulo": "10"
+        },
+        {
+          "id": "15",
+          "rotulo": "15"
+        }
+      ],
+      "padrao": "5"
+    },
+    {
+      "id": "qualidade_video",
+      "tipo": "escolha",
+      "rotulo": {
+        "pt-BR": "Qualidade do vídeo do clipe",
+        "en": "Music video quality"
+      },
+      "ajuda": {
+        "pt-BR": "A altura máxima do vídeo baixado para o fundo. Maior fica mais bonito na TV, demora mais e ocupa mais espaço. O IOkê também tem um limite próprio (Configurações → Músicas novas).",
+        "en": "The maximum height of the video downloaded for the background. Higher looks better on the TV, takes longer and uses more space. IOkê also has its own limit (Settings → New songs)."
+      },
+      "valores": [
+        {
+          "id": "360",
+          "rotulo": "360p"
+        },
+        {
+          "id": "480",
+          "rotulo": "480p"
+        },
+        {
+          "id": "720",
+          "rotulo": "720p"
+        },
+        {
+          "id": "1080",
+          "rotulo": "1080p"
+        }
+      ],
+      "padrao": "720"
+    },
+    {
+      "id": "navegador_cookies",
+      "tipo": "escolha",
+      "rotulo": {
+        "pt-BR": "Cookies de um navegador (avançado)",
+        "en": "Cookies from a browser (advanced)"
+      },
+      "ajuda": {
+        "pt-BR": "Só se a conta conectada não funcionar. O navegador precisa estar fechado.",
+        "en": "Only if the connected account doesn't work. The browser must be closed."
+      },
+      "valores": [
+        {
+          "id": "",
+          "rotulo": {
+            "pt-BR": "Não usar",
+            "en": "Don't use"
+          }
+        },
+        {
+          "id": "chrome",
+          "rotulo": "Chrome"
+        },
+        {
+          "id": "edge",
+          "rotulo": "Edge"
+        },
+        {
+          "id": "firefox",
+          "rotulo": "Firefox"
+        }
+      ],
+      "padrao": ""
+    }
+  ],
+  "acoes": [
+    {
+      "id": "entrar",
+      "rotulo": {
+        "pt-BR": "Entrar com o YouTube",
+        "en": "Sign in with YouTube"
+      },
+      "onde": "configuracoes",
+      "icone": "login"
+    },
+    {
+      "id": "conferir",
+      "rotulo": {
+        "pt-BR": "Verificar a conta",
+        "en": "Check the account"
+      },
+      "onde": "configuracoes",
+      "icone": "sync"
+    },
+    {
+      "id": "sair",
+      "rotulo": {
+        "pt-BR": "Desconectar a conta",
+        "en": "Disconnect the account"
+      },
+      "onde": "configuracoes",
+      "icone": "logout"
+    }
+  ],
+  "acoes_musica": [
+    {
+      "id": "baixar_de_novo",
+      "rotulo": {
+        "pt-BR": "Baixar o áudio de novo",
+        "en": "Download the audio again"
+      },
+      "icone": "cloud_download"
+    },
+    {
+      "id": "baixar_video",
+      "rotulo": {
+        "pt-BR": "Baixar o vídeo do clipe",
+        "en": "Download the music video"
+      },
+      "icone": "movie"
+    }
+  ],
+  "migrar": [
+    "youtube-cookies.txt",
+    "youtube-account.json",
+    "youtube-login"
+  ]
+}
