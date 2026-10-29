@@ -1,12 +1,14 @@
 """Busca, trecho e download de audio e video do YouTube (com o yt-dlp)."""
 import copy
 import logging
+from concurrent.futures import ThreadPoolExecutor
 import os
 import re
 import shutil
 import threading
 import time
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import yt_dlp
 from yt_dlp.utils import DownloadCancelled
@@ -18,6 +20,13 @@ log = logging.getLogger("complemento.youtube")
 
 VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 URL_ID_RE = re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/|/live/)([A-Za-z0-9_-]{11})")
+# listas: uma playlist (?list=...) ou um album do YouTube Music (/browse/MPREb_...)
+LISTA_RE = re.compile(r"[?&]list=([A-Za-z0-9_-]{10,})")
+ALBUM_RE = re.compile(r"/browse/(MPREb_[A-Za-z0-9_-]+)")
+LISTA_REF_RE = re.compile(r"^(?:MPREb_)?[A-Za-z0-9_-]{10,}$")
+LISTA_MAX = 300  # musicas de uma lista (um "Mix" do YouTube nao tem fim)
+ALBUNS_NA_BUSCA = 2  # albuns do YouTube Music junto com os videos, na busca por texto
+_INDISPONIVEIS = ("[private video]", "[deleted video]", "[video privado]", "[vídeo privado]")
 # Melhor audio que o YouTube oferecer: normalmente o Opus ~130-160 kbps (itag 251); com uma conta
 # Premium, o Opus ~256 kbps (itag 774) ou o AAC 256 kbps (itag 141), pelo cliente do YouTube Music.
 AUDIO_FORMAT = "bestaudio/best"
@@ -65,14 +74,81 @@ class YouTube:
 
     # ------------------------------------------------------------ busca
     def buscar(self, texto, limite=5):
-        vid = video_id_do_texto(texto)
-        if vid:
-            with yt_dlp.YoutubeDL(self._opts(skip_download=True)) as ydl:
-                info = ydl.extract_info(watch_url(vid), download=False, process=False)
-            return [resultado(info)]
-        with yt_dlp.YoutubeDL(self._opts(skip_download=True, extract_flat="in_playlist")) as ydl:
-            r = ydl.extract_info(f"ytsearch{int(limite)}:{texto}", download=False)
-        return [resultado(e) for e in r.get("entries") or [] if e and e.get("id") and VIDEO_ID_RE.match(e["id"])]
+        """Os videos da busca e, por texto, ate ALBUNS_NA_BUSCA albuns do YouTube Music. Um link colado: o video
+        e/ou a lista dele (uma playlist, um album)."""
+        lista, vid = lista_do_texto(texto), video_id_do_texto(texto)
+        if lista or vid:
+            out = [self.resultado_da_lista(lista)] if lista else []
+            if vid:
+                with yt_dlp.YoutubeDL(self._opts(skip_download=True)) as ydl:
+                    out.append(resultado(ydl.extract_info(watch_url(vid), download=False, process=False)))
+            return out
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            albuns = pool.submit(self._albuns, texto)
+            with yt_dlp.YoutubeDL(self._opts(skip_download=True, extract_flat="in_playlist")) as ydl:
+                r = ydl.extract_info(f"ytsearch{int(limite)}:{texto}", download=False)
+            videos = [resultado(e) for e in r.get("entries") or [] if e and e.get("id") and VIDEO_ID_RE.match(e["id"])]
+            try:
+                return albuns.result(timeout=15) + videos
+            except Exception as exc:  # noqa: BLE001 - sem os albuns, os videos continuam
+                log.info("albuns na busca: %s", limpar(exc))
+                return videos
+
+    def _albuns(self, texto):
+        """Os primeiros albuns do YouTube Music para o texto (nomes limpos e faixas na ordem)."""
+        busca = f"https://music.youtube.com/search?q={quote_plus(texto)}#albums"
+        with yt_dlp.YoutubeDL(self._opts(skip_download=True, extract_flat="in_playlist",
+                                         playlistend=ALBUNS_NA_BUSCA)) as ydl:
+            r = ydl.extract_info(busca, download=False)
+        refs = [e["id"] for e in r.get("entries") or [] if e and str(e.get("id") or "").startswith("MPREb_")]
+        with ThreadPoolExecutor(max_workers=max(1, len(refs))) as pool:
+            return [x for x in pool.map(self._resultado_ou_nada, refs[:ALBUNS_NA_BUSCA]) if x]
+
+    def _resultado_ou_nada(self, ref):
+        try:
+            return self.resultado_da_lista(ref)
+        except Exception as exc:  # noqa: BLE001
+            log.info("album %s: %s", ref, limpar(exc))
+            return None
+
+    # ------------------------------------------------------------ listas (playlists e albuns)
+    def info_da_lista(self, ref, ate=LISTA_MAX):
+        if not LISTA_REF_RE.match(ref or ""):
+            raise ValueError("lista invalida")
+        with yt_dlp.YoutubeDL(self._opts(skip_download=True, extract_flat="in_playlist", noplaylist=False,
+                                         playlistend=ate)) as ydl:
+            return ydl.extract_info(url_da_lista(ref), download=False)
+
+    def resultado_da_lista(self, ref):
+        """O cartao da lista na busca: o nome, o canal (ou o artista do album), a capa e quantas musicas."""
+        info = self.info_da_lista(ref, ate=1)
+        album, titulo = nome_do_album(info)
+        primeira = next(iter(info.get("entries") or []), None) or {}
+        artista = (primeira.get("channel") or primeira.get("uploader") or "") if album else \
+            (info.get("channel") or info.get("uploader") or "")
+        return {"ref": ref, "chave": None, "titulo": titulo, "artista": artista, "tipo": "lista",
+                "quantidade": info.get("playlist_count"), "capa_url": capa_da_lista(info),
+                "tem_trecho": False, "tem_video": False}
+
+    def lista(self, ref):
+        """As musicas da lista, no formato dos resultados da busca. Album: com o nome dele e o numero da faixa."""
+        info = self.info_da_lista(ref)
+        album, titulo = nome_do_album(info)
+        itens = []
+        for e in info.get("entries") or []:
+            if not e or not VIDEO_ID_RE.match(str(e.get("id") or "")):
+                continue
+            if str(e.get("title") or "").strip().lower() in _INDISPONIVEIS:
+                continue  # privado ou apagado: nao da para baixar
+            it = resultado(e)
+            if album:  # o YouTube Music ja da o nome da faixa e o artista
+                it.update(album=titulo, faixa=len(itens) + 1)
+            else:  # playlist comum: "Artista - Musica (Clipe Oficial)" no titulo do video, como ao baixar
+                palpite = adivinhar(e)
+                it.update(titulo=palpite["titulo"] or it["titulo"], artista=palpite["artista"] or it["artista"])
+            itens.append(it)
+        artista = (itens[0]["artista"] if itens else "") if album else (info.get("channel") or info.get("uploader") or "")
+        return {"titulo": titulo, "artista": artista, "capa_url": capa_da_lista(info), "itens": itens}
 
     # ------------------------------------------------------------ trecho
     def trecho(self, video_id, destino):
@@ -204,6 +280,38 @@ class YouTube:
 # ---------------------------------------------------------------- ajudantes
 def watch_url(video_id):
     return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def lista_do_texto(texto):
+    """A lista de um link colado (?list=... ou um album /browse/MPREb_...), ou None."""
+    texto = (texto or "").strip()
+    if "youtu" not in texto:
+        return None
+    m = ALBUM_RE.search(texto) or LISTA_RE.search(texto)
+    return m.group(1) if m else None
+
+
+def url_da_lista(ref):
+    if ref.startswith("MPREb_"):
+        return f"https://music.youtube.com/browse/{ref}"
+    return f"https://www.youtube.com/playlist?list={ref}"
+
+
+def nome_do_album(info):
+    """(e um album do YouTube Music?, o nome para mostrar). Os albuns vem como "Album - Nome" (playlist OLAK5uy_)."""
+    titulo = str(info.get("title") or info.get("id") or "")
+    album = str(info.get("id") or "").startswith("OLAK5uy_") or titulo.startswith(("Album - ", "Álbum - "))
+    if album:
+        titulo = re.sub(r"^(?:Album|Álbum) - ", "", titulo)
+    return album, titulo
+
+
+def capa_da_lista(info):
+    thumbs = [t for t in info.get("thumbnails") or [] if t.get("url")]
+    if thumbs:
+        return max(thumbs, key=lambda t: (t.get("width") or 0) * (t.get("height") or 0))["url"]
+    primeira = next(iter(info.get("entries") or []), None) or {}
+    return thumb_url(primeira["id"]) if VIDEO_ID_RE.match(str(primeira.get("id") or "")) else None
 
 
 def thumb_url(video_id, qualidade="mqdefault"):

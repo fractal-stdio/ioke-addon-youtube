@@ -27,6 +27,54 @@ def test_guess_and_ids():
     assert youtube.video_id_do_texto("tempo perdido") is None
 
 
+def test_lists_from_links():
+    assert youtube.lista_do_texto("https://www.youtube.com/playlist?list=PLHmguiAhyeHWzYg8XE4wLT_iC0_RC1Wti") == \
+        "PLHmguiAhyeHWzYg8XE4wLT_iC0_RC1Wti"
+    assert youtube.lista_do_texto("https://www.youtube.com/watch?v=amnD41wlj7Q&list=PLabcdefghij") == "PLabcdefghij"
+    assert youtube.lista_do_texto("https://music.youtube.com/browse/MPREb_nHbCAGX6uUL") == "MPREb_nHbCAGX6uUL"
+    assert youtube.lista_do_texto("https://youtu.be/dQw4w9WgXcQ") is None
+    assert youtube.lista_do_texto("pink floyd list=PLabcdefghij") is None  # so em link do YouTube
+    assert youtube.url_da_lista("MPREb_nHbCAGX6uUL") == "https://music.youtube.com/browse/MPREb_nHbCAGX6uUL"
+    assert youtube.url_da_lista("PLabcdefghij") == "https://www.youtube.com/playlist?list=PLabcdefghij"
+
+
+def test_album_name_and_cover():
+    assert youtube.nome_do_album({"id": "OLAK5uy_x", "title": "Album - The Dark Side of the Moon"}) == \
+        (True, "The Dark Side of the Moon")
+    assert youtube.nome_do_album({"id": "PLx", "title": "Minha playlist"}) == (False, "Minha playlist")
+    info = {"thumbnails": [{"url": "a", "width": 120, "height": 90}, {"url": "b", "width": 480, "height": 360}]}
+    assert youtube.capa_da_lista(info) == "b"
+    assert youtube.capa_da_lista({"entries": [{"id": "dQw4w9WgXcQ"}]}).endswith("/dQw4w9WgXcQ/mqdefault.jpg")
+
+
+def test_list_songs(monkeypatch):
+    """Album: nome da faixa, artista, album e numero; playlist comum: o palpite pelo titulo; privados ficam de fora."""
+    yt = youtube.YouTube()
+    album = {"id": "OLAK5uy_x", "title": "Album - Disco", "entries": [
+        {"id": "aaaaaaaaaaa", "title": "Faixa Um", "channel": "Banda", "duration": 100},
+        {"id": "bbbbbbbbbbb", "title": "[Private video]"},
+        {"id": "ccccccccccc", "title": "Faixa Dois", "channel": "Banda", "duration": 200}]}
+    monkeypatch.setattr(yt, "info_da_lista", lambda ref, ate=0: album)
+    r = yt.lista("MPREb_xyz123456")
+    assert (r["titulo"], r["artista"]) == ("Disco", "Banda")
+    assert [(i["titulo"], i["album"], i["faixa"]) for i in r["itens"]] == [("Faixa Um", "Disco", 1), ("Faixa Dois", "Disco", 2)]
+    playlist = {"id": "PLx", "title": "Festa", "channel": "Eu", "entries": [
+        {"id": "aaaaaaaaaaa", "title": "Legião Urbana - Tempo Perdido (Clipe Oficial) Lyrics", "channel": "Canal Qualquer"}]}
+    monkeypatch.setattr(yt, "info_da_lista", lambda ref, ate=0: playlist)
+    it = yt.lista("PLxxxxxxxxxx")["itens"][0]
+    assert (it["artista"], it["titulo"], it.get("faixa")) == ("Legião Urbana", "Tempo Perdido", None)
+    assert it["ref"] == it["chave"] == "aaaaaaaaaaa"  # a mesma musica adicionada sozinha: o mesmo id no IOkê
+
+
+def test_trailing_junk_in_names():
+    from nomes import clean_track
+
+    assert clean_track("Speak to Me (HQ) Lyrics") == "Speak to Me"
+    assert clean_track("Tempo Perdido Clipe Oficial") == "Tempo Perdido"
+    assert clean_track("Video Killed the Radio Star") == "Video Killed the Radio Star"
+    assert clean_track("Lyrics") == "Lyrics"  # o nome todo: fica
+
+
 def test_no_gpl_dependency():
     linhas = [ln.split("#")[0].strip().lower() for ln in (RAIZ / "requirements.txt").read_text(encoding="utf-8").splitlines()]
     assert not any(ln.startswith("mutagen") or "[default]" in ln for ln in linhas)

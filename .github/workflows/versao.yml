@@ -1,0 +1,34 @@
+# A cada push na main: se a versao do karaoke-complemento.json ainda nao tem tag, cria a tag vX.Y.Z
+# (o IOkê instala e atualiza pelas tags). Antes, os testes.
+name: Versão
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  versao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Testes
+        run: |
+          pip install -q -r requirements.txt pytest
+          python -m pytest -q tests
+      - name: Tag da versão
+        run: |
+          V=$(python -c "import json;print(json.load(open('karaoke-complemento.json'))['versao'])")
+          if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
+            echo "v$V ja existe"
+          else
+            git tag "v$V" "$GITHUB_SHA"
+            git push origin "v$V"
+          fi

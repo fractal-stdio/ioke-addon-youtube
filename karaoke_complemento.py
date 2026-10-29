@@ -169,6 +169,13 @@ class Complemento:
         self._rotas["/fonte/reconhecer"] = lambda d: {"musica": fn(dict(d.get("musica") or {})) or None}
         return fn
 
+    def lista(self, fn):
+        """fn(ref) -> {"titulo", "artista"?, "capa_url"?, "itens": [resultados, no formato da busca]} (fonte_musicas).
+        Para os resultados da busca com "tipo": "lista" (uma playlist, um album...): o app mostra as musicas dela na
+        janela de revisao e adiciona as que a pessoa marcar, cada uma como um resultado comum."""
+        self._rotas["/fonte/lista"] = lambda d: fn(str(d.get("ref") or ""))
+        return fn
+
     def letras_buscar(self, fn):
         """fn(dados) -> [{"fonte", "id", "titulo", "artista", "album", "duracao", "sincronizada", "palavras"}]."""
         self._rotas["/letras/buscar"] = lambda d: {"resultados": fn(d)}

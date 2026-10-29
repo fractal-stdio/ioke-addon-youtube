@@ -7,12 +7,12 @@
     "en": "YouTube"
   },
   "descricao": {
-    "pt-BR": "Busca, trecho e download do áudio (e do vídeo do clipe) do YouTube, com a conta Premium opcional.",
-    "en": "Search, preview and download audio (and the music video) from YouTube, with an optional Premium account."
+    "pt-BR": "Busca, trecho e download do áudio (e do vídeo do clipe) do YouTube, playlists e álbuns inteiros, com a conta Premium opcional.",
+    "en": "Search, preview and download audio (and the music video) from YouTube, whole playlists and albums, with an optional Premium account."
   },
   "autor": "ioke-addon-youtube",
-  "versao": "1.1.0",
-  "app_minimo": "1.0.0-rc.2",
+  "versao": "1.2.0",
+  "app_minimo": "1.2.0",
   "python": "3.12",
   "entrada": "complemento.py",
   "dependencias": "requirements.txt",

@@ -1,5 +1,6 @@
-"""Complemento "YouTube" para o IOkê: busca, trecho, audio (e o video do clipe) e a conta
-Premium opcional. Fala com o app pelo SDK (karaoke_complemento.py, API 1)."""
+"""Complemento "YouTube" para o IOkê: busca, trecho, audio (e o video do clipe), playlists e albuns do YouTube
+Music (o app abre na janela de revisao) e a conta Premium opcional. Fala com o app pelo SDK (karaoke_complemento.py,
+API 1)."""
 import logging
 import re
 
@@ -126,6 +127,15 @@ def buscar(texto, limite):
         n = 5
     try:
         return yt.buscar(texto, min(limite, n) if limite else n)
+    except Exception as exc:  # noqa: BLE001
+        raise Erro(amigavel(exc)) from None
+
+
+@comp.lista
+def lista(ref):
+    """As musicas de uma playlist ou de um album (o app mostra na janela de revisao)."""
+    try:
+        return yt.lista(str(ref))
     except Exception as exc:  # noqa: BLE001
         raise Erro(amigavel(exc)) from None
 

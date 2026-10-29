@@ -27,7 +27,18 @@ def clean_track(title):
     kept = [s for s in segs if not _is_junk(s)]
     t = " - ".join(kept or segs[:1])
     t = re.sub(r"\s{2,}", " ", t)
+    # penduricalho solto no fim ("Time Lyrics", "Cais HD", "Tempo Perdido Clipe Oficial"), deixando o nome
+    sem_fim = _FIM_RE.sub("", t)
+    if sem_fim.strip(" -–—_\"'"):
+        t = sem_fim
     return t.strip(" -–—_\"'")
+
+
+_FIM_RE = re.compile(
+    r"(?:\s+(?:official|oficial|music|video|vídeo|clipe|clip|lyrics?|letra|legendado|hd|hq|4k|audio|áudio|"
+    r"visualizer|mv|videoclipe))+\s*$",
+    re.I,
+)
 
 
 def clean_display_title(title):
